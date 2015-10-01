@@ -23,6 +23,20 @@ var os = require('os')
 var tmp_path = path.resolve( os.tmpdir(), 'shepherd' )
 var tmp_file = path.resolve(tmp_path,'repository.zip')
 
+var log = function(message){
+	return function(){
+		console.log(message)	
+		return arguments[0]
+	}
+}
+
+var error = function(message){
+	return function(error){
+		console.error(message,error)
+		return arguments[0]	
+	}
+}
+
 /*
 *	Responds to two different kind of requests:
 *
@@ -37,13 +51,18 @@ function handler(event, context){
 		var config_url = "https://raw.githubusercontent.com/" + event.repository.full_name + "/master/lambdas.json"
 		var zip_url = "http://github.com/"+ event.repository.full_name +"/zipball/master/"
 		
+		console.log("Normalizing zip file for "+event.repository.full_name)
 		normalizeZip(zip_url)
+			.then(log("Zip file has successfully been normalized"))
+			.then(log("Download config file from Github"))
 			.then(function(){
 				return requestP(config_url)
 			})
+			.then(log("Config file has been downloaded"))
 			.then(
 				R.pipe( R.tail, JSON.parse )
 			)
+			.then(log("Config file was successfully parsed"))
 			.then(function(parsed){
 				config = parsed 
 			})
@@ -52,6 +71,7 @@ function handler(event, context){
 				S3 = new AWS.S3({ region: config.region })
 				lambda = new AWS.Lambda({ region: config.region })
 
+				console.log("Now uploading normalized zip to S3")
 				S3.upload({
 					Bucket: config.bucket,
 					Key: config.bucket_key,
@@ -62,11 +82,13 @@ function handler(event, context){
 						//todo-james is there a context.fail?
 						context.done(err) 
 					} else {
-						
+						//todo-james do this earlier in parallel
+						console.log("Now requesting Amazon for existing list of lambdas")
 						lambda.listFunctions({}, function(err, lambdas){
 							if(err) {
 								console.error(err)	
 							} else {
+								console.log("Lambdas returned", lambda.Functions)
 								var existing = indexBy(lambdas.Functions, 'FunctionName')
 								Promise.settle(
 									config.lambdas.map( patch(existing) )
@@ -94,7 +116,9 @@ var patch = R.curry(function (existing, lambda){
 	return (
 		lambda.FunctionName in existing ? updateLambda : createLambda
 	)(lambda)
-		.then(console.log).catch(console.error)	
+		.then(log( lambda.FunctionName + " successfully updated"))
+		.catch(error( lambda.FunctionName + " could not update"))
+		
 })
 
 function updateLambda(params){
@@ -135,23 +159,32 @@ function normalizeZip(http_url){
 	var unzip_command = 'pushd '+tmp_path+' && unzip '+tmp_file
 	var normalize_command = ('pushd {github_folder} && zip -r ' + tmp_file + ' * && popd')
 
+	console.log("Creating tmp directory")
 	//ensure the tmp directory exists
 	return mkdirs(tmp_path)
-	
+		.then(log("tmp directory successfully created"))
+		.then(log("Clearing tmp directory"))
 		//ensure the tmp folder is empty each time
 		.finally(function() { return fs.emptyDirAsync( tmp_path ) })
+		.then(log( "tmp directory cleared" ))
 		
+		.then(log( "streaming zip file from github to the lambda server"))
 		//stream the zip file from github to the local file system
 		.finally(function(){
+			
+			
 			return new Promise(function(Y,N){
 				var readStream = request(http_url)
 				var writeStream = fs.createWriteStream(tmp_file);
 				
 				readStream.pipe(writeStream)
 				
-				readStream.on('end', function(){ writeStream.end() })
+				readStream.on('end', function(){
+					writeStream.end() 
+				})
 				
 				writeStream.on('finish', function(){
+					console.log("Streaming complete.  Zip downloaded to "+tmp_path)
 					Y(tmp_file)
 				})
 				
@@ -164,18 +197,26 @@ function normalizeZip(http_url){
 		.then(function(){
 			
 			//unzip
+			console.log("Unzipping the downloaded repository")
 			return exec(unzip_command)
+				.then(log("Repository successfully unzipped"))
 				//remove the zip so the extracted folder is the only item in the tmp directory
+				.then(log("Deleting downloaded zip"))
 				.then(function(){
 					return fs.unlinkAsync(tmp_file)
+						.then(log("Zip successfully deleted"))
 				})
+				
 				//get the name of the containing folder that github generated
+				
+				.then(log("Identifying Github generated parent folder name"))
 				.then(function(){
 					return fs.readdirAsync(tmp_path)
 				})
 				.then(R.head)
-				
+				.then(log("Github generated name is identified"))
 				//enter the directory and zip up its contents as tmp_file
+				.then(log("Removing containing folder and rearchive"))
 				.then(function(github_folder){
 					github_folder = path.resolve(tmp_path,github_folder)
 					return exec(
@@ -184,6 +225,7 @@ function normalizeZip(http_url){
 					.then(
 						R.always(tmp_file)
 					)	
+					.then(log("Zip file was successfully normalized"))
 				})
 				
 		})
