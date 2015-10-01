@@ -23,8 +23,6 @@ var os = require('os')
 var tmp_path = path.resolve( os.tmpdir(), 'shepherd' )
 var tmp_file = path.resolve(tmp_path,'repository.zip')
 
-var local_npm_bin = path.resolve(__dirname,'node_modules','npm','bin','npm-cli.js') 
-
 /*
 *	Responds to two different kind of requests:
 *
@@ -135,8 +133,7 @@ function createLambda(params){
 */
 function normalizeZip(http_url){
 	var unzip_command = 'pushd '+tmp_path+' && unzip '+tmp_file
-	var normalize_command = ('pushd {github_folder} && {npm} install && zip -r ' + tmp_file + ' * && popd')
-		.replace('{npm}', 'node ' + local_npm_bin)
+	var normalize_command = ('pushd {github_folder} && zip -r ' + tmp_file + ' * && popd')
 
 	//ensure the tmp directory exists
 	return mkdirs(tmp_path)
