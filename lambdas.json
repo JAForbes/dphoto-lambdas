@@ -4,22 +4,8 @@
   "region": "us-west-2",
   "lambdas": [
     {
-      "FunctionName": "a",
-      "Handler": "a.handler",
-      "Role": "arn:aws:iam::285966843427:role/APIGatewayLambdaExecPolicy",
-      "Runtime": "nodejs",
-      "Description": " {\"Hello\":\", a user-provided string, and \"} "
-    },
-    {
-      "FunctionName": "b",
-      "Handler": "b.handler",
-      "Role": "arn:aws:iam::285966843427:role/APIGatewayLambdaExecPolicy",
-      "Runtime": "nodejs",
-      "Description": " {\"Hello\":\", a user-provided string, and \"} "
-    },
-    {
-      "FunctionName": "c",
-      "Handler": "c.handler",
+      "FunctionName": "Shepherd",
+      "Handler": "handler.handler",
       "Role": "arn:aws:iam::285966843427:role/APIGatewayLambdaExecPolicy",
       "Runtime": "nodejs",
       "Description": " {\"Hello\":\", a user-provided string, and \"} "

@@ -24,6 +24,7 @@ function handler(event, context){
 	if(event.refs.indexOf("master") > -1){
 		var config_url = "https://raw.githubusercontent.com/" + event.repository.full_name + "/lambdas.json"
 		var zip_url = "http://github.com/"+ event.repository.full_name +"/zipball/master/"
+		
 		requestP(config_url)
 			.then(function(response){
 				config = JSON.parse(response[1]) 
@@ -74,11 +75,10 @@ function handler(event, context){
 
 
 var patch = R.curry(function (existing, lambda){
-	if( lambda.FunctionName in existing ) {
-		return updateLambda(lambda)
-	} else {
-		return createLambda(lambda)
-	}
+	return (
+		lambda.FunctionName in existing ? updateLambda : createLambda
+	)(lambda)
+		.then(console.log).catch(console.error)	
 })
 
 function updateLambda(params){
