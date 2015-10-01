@@ -8,6 +8,10 @@ Deploys your lambdas when you git push.
 - Automatically deploys latest services on master branch
 - Specify your web service(s) by adding a `lambdas.json` to the root of your repo
 
+Getting Started
+---------------
+
+__coming soon__
 
 How it works
 ------------
@@ -17,7 +21,7 @@ to deploy your repo has a lambda web service.
 
 It will grab the latest `zip` of your master branch and upload it to an S3 bucket
 that you specify.  It then creates / updates the lambda functions source code to reference
-a file within that newly upload zip
+a file within that newly uploaded zip
 
 Example `lambdas.json`
 ----------------------
