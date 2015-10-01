@@ -11,8 +11,10 @@
   "dependencies": {
     "aws-sdk": "^2.2.5",
     "bluebird": "^2.10.1",
+    "fs-extra": "^0.24.0",
     "lodash": "^3.10.1",
     "ramda": "^0.17.1",
-    "request": "^2.64.0"
+    "request": "^2.64.0",
+    "rimraf": "^2.4.3"
   }
 }

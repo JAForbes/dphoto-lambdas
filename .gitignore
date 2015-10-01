@@ -30,3 +30,5 @@ node_modules
 
 .vscode
 *.zip
+
+scratch.js

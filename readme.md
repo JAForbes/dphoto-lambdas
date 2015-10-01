@@ -16,7 +16,7 @@ __coming soon__
 How it works
 ------------
 
-When you push your code to master, github sends an event to a server instructing Amazon
+When you push your code to master, github sends a [push event](https://developer.github.com/v3/activity/events/types/#pushevent) to a server instructing Amazon
 to deploy your repo has a lambda web service.
 
 It will grab the latest `zip` of your master branch and upload it to an S3 bucket

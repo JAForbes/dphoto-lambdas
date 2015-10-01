@@ -6,11 +6,25 @@ var AWS = require('aws-sdk')
 	AWS.config.secretAccessKey = 'SauFXOTApM5WnBIX+LN6s3a2ZVA7UdkIzPkz7MGl'
 	AWS.config.accessKeyId = 'AKIAJL2F723YMP4FC6QQ'
 
-var fs = require('fs')
+var fs = Promise.promisifyAll(require('fs-extra'))
+
+var rm = Promise.promisify(fs.remove)
+var mkdirs = Promise.promisify(fs.mkdirs)
+
 var request = require('request')
 var requestP = Promise.promisify(request)
 var config;
 var S3, lambda
+var exec = Promise.promisify(require('child_process').exec)
+
+var path = require('path')
+var os = require('os')
+
+var tmp_path = path.resolve( os.tmpdir(), 'shepherd' )
+var tmp_file = path.resolve(tmp_path,'repository.zip')
+
+
+
 /*
 *	Responds to two different kind of requests:
 *
@@ -22,12 +36,18 @@ var S3, lambda
 */
 function handler(event, context){
 	if(event.refs.indexOf("master") > -1){
-		var config_url = "https://raw.githubusercontent.com/" + event.repository.full_name + "/lambdas.json"
+		var config_url = "https://raw.githubusercontent.com/" + event.repository.full_name + "/master/lambdas.json"
 		var zip_url = "http://github.com/"+ event.repository.full_name +"/zipball/master/"
 		
-		requestP(config_url)
-			.then(function(response){
-				config = JSON.parse(response[1]) 
+		normalizeZip(zip_url)
+			.then(function(){
+				return requestP(config_url)
+			})
+			.then(
+				R.pipe( R.tail, JSON.parse )
+			)
+			.then(function(parsed){
+				config = parsed 
 			})
 			.then(function(){
 				
@@ -37,9 +57,7 @@ function handler(event, context){
 				S3.upload({
 					Bucket: config.bucket,
 					Key: config.bucket_key,
-					// will actually be zip_url later
-					
-					Body: fs.createReadStream(config.bucket_key)
+					Body: fs.createReadStream(tmp_file)
 				}, function(err, data){
 					if(err) {
 						console.log(err)
@@ -109,6 +127,68 @@ function createLambda(params){
 			return err ? N(err) : Y(data)
 		})
 	})
+}
+
+
+/*
+*	Formats the repository zip that github generates, so that Amazon can access the lambdas.
+*/
+function normalizeZip(http_url){
+	var unzip_command = 'pushd '+tmp_path+' && unzip '+tmp_file
+	var normalize_command = 'pushd {github_folder} && zip -r ' + tmp_file + ' * && popd'
+
+	//ensure the tmp directory exists
+	return mkdirs(tmp_path)
+	
+		//ensure the tmp folder is empty each time
+		.finally(function() { return fs.emptyDirAsync( tmp_path ) })
+		
+		//stream the zip file from github to the local file system
+		.finally(function(){
+			return new Promise(function(Y,N){
+				var readStream = request(http_url)
+				var writeStream = fs.createWriteStream(tmp_file);
+				
+				readStream.pipe(writeStream)
+				
+				readStream.on('end', function(){ writeStream.end() })
+				
+				writeStream.on('finish', function(){
+					Y(tmp_file)
+				})
+				
+				readStream.on('error',N)
+			})	
+		})
+		
+		//remove the containing folder that github inserts into the zip
+		//then rebundle it up so Amazon can access the handler(s)
+		.then(function(){
+			
+			//unzip
+			return exec(unzip_command)
+				//remove the zip so the extracted folder is the only item in the tmp directory
+				.then(function(){
+					return fs.unlinkAsync(tmp_file)
+				})
+				//get the name of the containing folder that github generated
+				.then(function(){
+					return fs.readdirAsync(tmp_path)
+				})
+				.then(R.head)
+				
+				//enter the directory and zip up its contents as tmp_file
+				.then(function(github_folder){
+					github_folder = path.resolve(tmp_path,github_folder)
+					return exec(
+						normalize_command.replace( "{github_folder}", github_folder )
+					)
+					.then(
+						R.always(tmp_file)
+					)	
+				})
+				
+		})
 }
 
 handler({
