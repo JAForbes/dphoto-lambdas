@@ -224,8 +224,7 @@ function normalizeZip(http_url){
 					)
 					.then(
 						R.always(tmp_file)
-					)	
-					.then(log("Zip file was successfully normalized"))
+					)
 				})
 				
 		})
