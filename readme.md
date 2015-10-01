@@ -22,7 +22,7 @@ a file within that newly upload zip
 Example `lambdas.json`
 ----------------------
 
-```json
+```js
 {
   "bucket": "lambda-bucket", //where to save the zip
   "bucket_key": "services.zip", //what to save the zip as
