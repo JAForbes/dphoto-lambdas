@@ -1,6 +1,6 @@
 var Promise = require("bluebird")
 var R = require('ramda')
-var _ = require('lodash')
+var indexBy = require('lodash.indexby')
 var AWS = require('aws-sdk')
 	//todo-james move into environment variables or something ... later
 	AWS.config.secretAccessKey = 'SauFXOTApM5WnBIX+LN6s3a2ZVA7UdkIzPkz7MGl'
@@ -51,8 +51,8 @@ function handler(event, context){
 			})
 			.then(function(){
 				
-				S3 = new AWS.S3()
-				lambda = new AWS.Lambda()
+				S3 = new AWS.S3({ region: config.region })
+				lambda = new AWS.Lambda({ region: config.region })
 
 				S3.upload({
 					Bucket: config.bucket,
@@ -69,7 +69,7 @@ function handler(event, context){
 							if(err) {
 								console.error(err)	
 							} else {
-								var existing = _.indexBy(lambdas.Functions, 'FunctionName')
+								var existing = indexBy(lambdas.Functions, 'FunctionName')
 								Promise.settle(
 									config.lambdas.map( patch(existing) )
 								)
@@ -135,7 +135,7 @@ function createLambda(params){
 */
 function normalizeZip(http_url){
 	var unzip_command = 'pushd '+tmp_path+' && unzip '+tmp_file
-	var normalize_command = 'pushd {github_folder} && zip -r ' + tmp_file + ' * && popd'
+	var normalize_command = 'pushd {github_folder} && npm install && zip -r ' + tmp_file + ' * && popd'
 
 	//ensure the tmp directory exists
 	return mkdirs(tmp_path)

@@ -13,6 +13,12 @@ Getting Started
 
 __coming soon__
 
+Limitations
+-----------
+
+- Must include your node_modules in source control
+- Your handlers must be in the root directory (but you can have as many as you like)
+
 How it works
 ------------
 
