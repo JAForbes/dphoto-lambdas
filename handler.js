@@ -7,7 +7,7 @@ var AWS = require('aws-sdk')
 	AWS.config.accessKeyId = 'AKIAJL2F723YMP4FC6QQ'
 
 var fs = Promise.promisifyAll(require('fs-extra'))
-
+var archiver = require('archiver')
 var rm = Promise.promisify(fs.remove)
 var mkdirs = Promise.promisify(fs.mkdirs)
 
@@ -47,6 +47,7 @@ var error = function(message){
 *	Then when the deployment hook is updated, the current hook will send a notification to deploy the other endpoints
 */
 function handler(event, context){
+	var archive;
 	if(event.refs.indexOf("master") > -1){
 		var config_url = "https://raw.githubusercontent.com/" + event.repository.full_name + "/master/lambdas.json"
 		var zip_url = "http://github.com/"+ event.repository.full_name +"/zipball/master/"
@@ -55,7 +56,9 @@ function handler(event, context){
 		normalizeZip(zip_url)
 			.then(log("Zip file has successfully been normalized"))
 			.then(log("Download config file from Github"))
-			.then(function(){
+			.then(function(archiveStream){
+				archive = archiveStream
+				
 				return requestP(config_url)
 			})
 			.then(log("Config file has been downloaded"))
@@ -70,12 +73,12 @@ function handler(event, context){
 				
 				S3 = new AWS.S3({ region: config.region })
 				lambda = new AWS.Lambda({ region: config.region })
-
+				archive.finalize()
 				console.log("Now uploading normalized zip to S3")
 				S3.upload({
 					Bucket: config.bucket,
 					Key: config.bucket_key,
-					Body: fs.createReadStream(tmp_file)
+					Body: archive
 				}, function(err, data){
 					if(err) {
 						console.log(err)
@@ -157,7 +160,7 @@ function createLambda(params){
 */
 function normalizeZip(http_url){
 	var unzip_command = 'pushd '+tmp_path+' && unzip '+tmp_file
-	var normalize_command = ('pushd {github_folder} && zip -r ' + tmp_file + ' * && popd')
+	var normalize_command = ('pushd {github_folder} && gzip -r ' + tmp_file + ' * && popd')
 
 	console.log("Creating tmp directory")
 	//ensure the tmp directory exists
@@ -219,12 +222,13 @@ function normalizeZip(http_url){
 				.then(log("Removing containing folder and rearchive"))
 				.then(function(github_folder){
 					github_folder = path.resolve(tmp_path,github_folder)
-					return exec(
-						normalize_command.replace( "{github_folder}", github_folder )
+					//creates a stream of a zip archive that we can stream to s3
+					var archive = archiver('zip',{})
+					archive.directory(
+						path.resolve(tmp_path, github_folder),
+						false
 					)
-					.then(
-						R.always(tmp_file)
-					)
+					return archive
 				})
 				
 		})
