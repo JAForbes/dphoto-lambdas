@@ -2,9 +2,6 @@ var Promise = require("bluebird")
 var R = require('ramda')
 var indexBy = require('lodash.indexby')
 var AWS = require('aws-sdk')
-	//todo-james move into environment variables or something ... later
-	AWS.config.secretAccessKey = 'SauFXOTApM5WnBIX+LN6s3a2ZVA7UdkIzPkz7MGl'
-	AWS.config.accessKeyId = 'AKIAJL2F723YMP4FC6QQ'
 
 var fs = Promise.promisifyAll(require('fs-extra'))
 var archiver = require('archiver')
@@ -16,6 +13,7 @@ var requestP = Promise.promisify(request)
 var config;
 var S3, lambda
 var exec = Promise.promisify(require('child_process').exec)
+var spawn = require('child_process').spawn
 
 var path = require('path')
 var os = require('os')
@@ -201,7 +199,15 @@ function normalizeZip(http_url){
 			
 			//unzip
 			console.log("Unzipping the downloaded repository")
-			return exec(unzip_command)
+			return new Promise(function(Y,N){
+				var unzip = spawn('unzip',['-q',tmp_file], { cwd: tmp_path })
+				unzip.stdout.on('data', R.pipe( String,console.log) )
+				unzip.on('close', function(code){
+					code == 0 ? Y(code) : N(code)
+				})
+				unzip.on('error', N )
+			
+			})
 				.then(log("Repository successfully unzipped"))
 				//remove the zip so the extracted folder is the only item in the tmp directory
 				.then(log("Deleting downloaded zip"))
@@ -233,12 +239,5 @@ function normalizeZip(http_url){
 				
 		})
 }
-
-handler({
-	refs: "refs/branch/master",
-	repository: {
-		full_name: "JAForbes/dphoto-lambdas"
-	}
-}, { done: R.identity })
 
 exports.handler = handler
