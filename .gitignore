@@ -31,3 +31,5 @@ typings
 *.zip
 
 scratch.js
+
+*aws-sdk*
