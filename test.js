@@ -1,8 +1,8 @@
-var R = require("ramda")
+var _ = require("lodash")
 
 require('./handler').handler({
 	refs: "refs/branch/master",
 	repository: {
 		full_name: "JAForbes/dphoto-lambdas"
 	}
-}, { done: R.identity })
+}, { done: _.identity })

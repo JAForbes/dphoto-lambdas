@@ -1,6 +1,5 @@
 var Promise = require("bluebird")
-var R = require('ramda')
-var indexBy = require('lodash.indexby')
+var _ = require("lodash")
 var AWS = require('aws-sdk')
 
 var fs = Promise.promisifyAll(require('fs-extra'))
@@ -61,7 +60,7 @@ function handler(event, context){
 			})
 			.then(log("Config file has been downloaded"))
 			.then(
-				R.pipe( R.tail, JSON.parse )
+				_.compose(JSON.parse , _.last)
 			)
 			.then(log("Config file was successfully parsed"))
 			.then(function(parsed){
@@ -90,7 +89,7 @@ function handler(event, context){
 								console.error(err)	
 							} else {
 								console.log("Lambdas returned", lambda.Functions)
-								var existing = indexBy(lambdas.Functions, 'FunctionName')
+								var existing = _.indexBy(lambdas.Functions, 'FunctionName')
 								Promise.settle(
 									config.lambdas.map( patch(existing) )
 								)
@@ -113,7 +112,7 @@ function handler(event, context){
 
 
 
-var patch = R.curry(function (existing, lambda){
+var patch = _.curry(function (existing, lambda){
 	return (
 		lambda.FunctionName in existing ? updateLambda : createLambda
 	)(lambda)
@@ -138,7 +137,8 @@ function updateLambda(params){
 }
 
 function createLambda(params){
-	var createParams = R.merge(
+	var createParams = _.assign(
+		{},
 		params, 
 		{ 
 			Code: { S3Bucket: config.bucket, S3Key: config.bucket_key  }
@@ -201,7 +201,7 @@ function normalizeZip(http_url){
 			console.log("Unzipping the downloaded repository")
 			return new Promise(function(Y,N){
 				var unzip = spawn('unzip',['-q',tmp_file], { cwd: tmp_path })
-				unzip.stdout.on('data', R.pipe( String,console.log) )
+				unzip.stdout.on('data', _.compose( console.log, String) )
 				unzip.on('close', function(code){
 					code == 0 ? Y(code) : N(code)
 				})
@@ -218,20 +218,21 @@ function normalizeZip(http_url){
 				
 				//get the name of the containing folder that github generated
 				
-				.then(log("Identifying Github generated parent folder name"))
-				.then(function(){
-					return fs.readdirAsync(tmp_path)
-				})
-				.then(R.head)
-				.then(log("Github generated name is identified"))
-				//enter the directory and zip up its contents as tmp_file
+				//todo-james we can know this if we change the url to tarball but keep a zip extension
+					.then(log("Identifying Github generated parent folder name"))
+					.then(function(){
+						return fs.readdirAsync(tmp_path)
+					})
+					.then(_.first)
+					.then(log("Github generated name is identified"))
+					
 				.then(log("Removing containing folder and rearchive"))
 				.then(function(github_folder){
 					github_folder = path.resolve(tmp_path,github_folder)
 					//creates a stream of a zip archive that we can stream to s3
 					var archive = archiver('zip',{})
 					archive.directory(
-						path.resolve(tmp_path, github_folder),
+						github_folder,
 						false
 					)
 					return archive
